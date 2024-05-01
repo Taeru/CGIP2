@@ -31,6 +31,8 @@ float lightColor[3] = { 1.0, 1.0, 1.0 };
 
 float clearcolor[4] = { 0.0, 0.0,0.0,1.0 };
 
+
+
 void create_scene()
 {
     int width = nx;
@@ -234,14 +236,19 @@ void shadeVertex(float* vertex, float* normal, float* color)
         color[2] += lightColor[2] * ks[2] * spec;
     }
     int index = (vertex - vertices) / 3;
-    colors[3 * index] = color[0];
-    colors[3 * index + 1] = color[1];
-    colors[3 * index + 2] = color[2];
+    if (index >= 0 && index < gNumVertices)
+    {
+        colors[3 * index] = color[0];
+        colors[3 * index + 1] = color[1];
+        colors[3 * index + 2] = color[2];
+    }
 }
 void flatShading()
 {
+    //glEnable(GL_DEPTH_TEST);
+    //glClear(GL_DEPTH_BUFFER_BIT);
+
     glShadeModel(GL_FLAT);
-    glBegin(GL_TRIANGLES);
     for (int i = 0; i < gNumTriangles; ++i)
     {
         float centroid[3] = { 0.0, 0.0, 0.0 };
@@ -261,67 +268,75 @@ void flatShading()
 
         float color[3];
         shadeVertex(centroid, normal, color);
-        glColor3fv(color);
 
         for (int j = 0; j < 3; ++j)
         {
             int index = gIndexBuffer[3 * i + j];
-            glVertex3fv(&vertices[3 * index]);
+            colors[3 * index] = color[0];
+            colors[3 * index + 1] = color[1];
+            colors[3 * index + 2] = color[2];
         }
     }
-    glEnd();
 }
+
 void gouraudShading()
 {
     float* normals = new float[3 * gNumVertices];
     calculateVertexNormals(normals);
 
-    glShadeModel(GL_SMOOTH);
-    glBegin(GL_TRIANGLES);
-    for (int i = 0; i < gNumTriangles; ++i)
+    for (int i = 0; i < gNumVertices; ++i)
     {
-        for (int j = 0; j < 3; ++j)
-        {
-            int index = gIndexBuffer[3 * i + j];
-            float* vertex = &vertices[3 * index];
-            float* normal = &normals[3 * index];
+        float* vertex = &vertices[3 * i];
+        float* normal = &normals[3 * i];
 
-            float color[3];
-            shadeVertex(vertex, normal, color);
-            glColor3fv(color);
+        float color[3];
+        shadeVertex(vertex, normal, color);
 
-            glVertex3fv(vertex);
-        }
+        colors[3 * i] = color[0];
+        colors[3 * i + 1] = color[1];
+        colors[3 * i + 2] = color[2];
     }
-    glEnd();
 
     delete[] normals;
 }
+
+
 void phongShading()
 {
     float* normals = new float[3 * gNumVertices];
     calculateVertexNormals(normals);
 
-    glShadeModel(GL_SMOOTH);
-    glBegin(GL_TRIANGLES);
     for (int i = 0; i < gNumTriangles; ++i)
     {
+        float n1[3], n2[3], n3[3];
+        calculateTriangleNormals(i, n1, n2, n3);
+
         for (int j = 0; j < 3; ++j)
         {
             int index = gIndexBuffer[3 * i + j];
             float* vertex = &vertices[3 * index];
-            float* normal = &normals[3 * index];
-            float color[3];
+            float* normal;
 
+            if (j == 0)
+                normal = n1;
+            else if (j == 1)
+                normal = n2;
+            else
+                normal = n3;
+
+            float color[3];
             shadeVertex(vertex, normal, color);
-            glColor3fv(color);
-            glVertex3fv(vertex);
+
+            colors[3 * index] = color[0];
+            colors[3 * index + 1] = color[1];
+            colors[3 * index + 2] = color[2];
         }
     }
-    glEnd();
 
     delete[] normals;
 }
+
+
 void gammaCorrection(float gamma)
 {
     float gammaInv = 1.0 / gamma;
@@ -356,15 +371,15 @@ void display()
     glEnableClientState(GL_VERTEX_ARRAY);
     glVertexPointer(3, GL_FLOAT, 0, vertices);
 
-    //glEnableClientState(GL_COLOR_ARRAY);
-    //glColorPointer(3, GL_FLOAT, 0, colors);
+    glEnableClientState(GL_COLOR_ARRAY);
+    glColorPointer(3, GL_FLOAT, 0, colors);
 
     
     glEnable(GL_DEPTH_TEST);
 
     glDrawElements(GL_TRIANGLES, gNumTriangles * 3, GL_UNSIGNED_INT, gIndexBuffer);
     glDisableClientState(GL_VERTEX_ARRAY);
-    //flatShading();
+    flatShading();
     //gouraudShading();
     //phongShading();
 
